@@ -38,26 +38,38 @@ CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
 </head>
 
 <body>
-  <header style="max-width: 800px;">
+  <header style="max-width: 1200px;">
     <details open>
       <summary>Cube Layer</summary>
       <p>
-        This sample shows how to draw a scene into a cube layer.
-        Cube layers are mainly used for drawing static backgrounds that
-        only need to be drawn once or rarely need refreshing. The
-        same thing can be accomplished with projection layers, but
-        since projection layers redraw all objects every frame, cube
-        layers are a much more efficient alternative.
+       It seems that memory for webxr layers isn't properly released after destruction. </br>
+      </br>
+       I determined the memory wasn't being released using MQDH and looking at the memory usage in the performance tab. </br>
+       I am using a quest 2 in meta browser. </br>
+      </br>
+        Empty Layers are created 5 seconds after the start of the webxr session and destroyed after another 5 seconds. </br>
+      </br>
+  
+    </br>
+  </br>
+        It could be a specific issue with destroying layers before they are drawn, but I have a feeling it is a more general issue. </br>
+</br> 
+        I have not had the change to test every possible explination. </br>
+       
+       
+       
         <a class="back" href="./index.html">Back</a>
       </p>
-      <p>
-        Mono cubemap image by Eric Cheng<br />
-        Stereo cubemap image by Jon Griffith
-      </p>
-      <input type="checkbox" id="cubeIsStereo">Stereo cube layer</input><br />
+  
+      <div>
+        <label for="layerCountSlider">Number of Empty Layers (1-50): </label>
+        <input type="range" id="layerCountSlider" min="1" max="50" value="15">
+        <span id="layerCountValue">15</span>
+      </div>
+      <!-- <input type="checkbox" id="cubeIsStereo">Stereo cube layer</input><br /> -->
     </details>
   </header>
-  <main style='text-align: center;'>
+  <main style='text-align: center; padding: auto;'>
     <p>Click 'Enter VR' to see content</p>
   </main>
   <script type="module">
@@ -65,6 +77,16 @@ CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
     import { Scene, WebXRView } from '../js/render/scenes/scene.js';
     import { Renderer, createWebGLContext } from '../js/render/core/renderer.js';
     import { QueryArgs } from '../js/util/query-args.js';
+
+
+    const slider = document.getElementById('layerCountSlider');
+    const output = document.getElementById('layerCountValue');
+    let emptyLayerCount = 15;
+
+slider.oninput = function() {
+  output.textContent = this.value;
+  emptyLayerCount = parseInt(this.value);
+}
 
     const CUBE_TEXTURE_MONO_PATH = '../media/textures/mono_cube_map.png';
     const CUBE_TEXTURE_STEREO_PATH = '../media/textures/stereo_cube_map.png';
@@ -93,7 +115,7 @@ CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
     let projLayer = null;
     let cubeLayer = null;
     let cubeImageElement = null;
-    let cubeIsStereo = false;
+    let cubeIsStereo = true;
     let cubeFaceSize = 0;
 
     function initXR() {
@@ -215,7 +237,7 @@ CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
       xrFramebuffer = gl.createFramebuffer();
       xrGLFactory = new XRWebGLBinding(session, gl);
 
-      cubeIsStereo = document.getElementById("cubeIsStereo").checked;
+      // cubeIsStereo = document.getElementById("cubeIsStereo").checked;
       let cubeImagePath = cubeIsStereo ?
         CUBE_TEXTURE_STEREO_PATH :
         CUBE_TEXTURE_MONO_PATH;
@@ -239,9 +261,15 @@ CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
             layout: cubeIsStereo ? "stereo" : "mono",
             isStatic: true
           });
-          session.updateRenderState({ layers: [cubeLayer, projLayer] });
+          
+          session.updateRenderState({layers: [
+            cubeLayer,
+            session.renderState.layers[xrSession.renderState.layers.length - 1],
+          ],
+          });
         }
 
+        addRemoveEmptyLayers();
         session.requestAnimationFrame(onXRFrame);
       });
     }
@@ -308,6 +336,62 @@ CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
     }
 
     initXR();
+
+
+    function disposeCubeLayer(){
+      cubeLayer.destroy();
+      cubeLayer = undefined;
+    }
+
+    
+//add event listeners for the start and end of the xr session
+async function addRemoveEmptyLayers(){
+      await new Promise((resolve) => setTimeout(resolve, 5000));
+      createEmptyLayers();    
+      await new Promise((resolve) => setTimeout(resolve, 10000));
+      disposeEmptyLayers();
+}
+
+let layerManager = [];
+
+function createEmptyLayer() {
+  cubeLayer = xrGLFactory.createCubeLayer({
+    space: xrRefSpace,
+    viewPixelWidth: 1024,
+    viewPixelHeight: 1024,
+    layout: cubeIsStereo ? "stereo" : "mono",
+    isStatic: true,
+  });
+  layerManager.push(cubeLayer);
+}
+
+
+async function createEmptyLayers() {
+    for (let i = 0; i < emptyLayerCount; i++) {
+        createEmptyLayer();
+        await new Promise((resolve) => setTimeout(resolve, 200));
+    }
+}
+
+async function disposeEmptyLayers() {
+    // destroy undrawn layers
+    while (layerManager.length > 0) {
+      await new Promise((resolve) => setTimeout(resolve, 200));
+        let layer = layerManager.pop(); // Remove and get the layer
+        if (layer) {
+            layer.destroy();
+            layer = undefined;
+        }
+    }
+
+    // Clear the array reference
+    layerManager = [];
+}
+
+window.createEmptyLayers = createEmptyLayers;
+window.disposeEmptyLayers = disposeEmptyLayers;
+
+    window.disposeCubeLayer = disposeCubeLayer;
   </script>
 </body>
 
