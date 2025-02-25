@@ -54,7 +54,6 @@ CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
   </br>
         It could be a specific issue with destroying layers before they are drawn, but I have a feeling it is a more general issue. </br>
 </br> 
-        I have not had the change to test every possible explination. </br>
        
        
        
@@ -142,9 +141,10 @@ slider.oninput = function() {
       }
     }
 
-    function initGL() {
+    async function initGL() {
       if (gl) { return; }
       gl = createWebGLContext({ xrCompatible: true, webgl2: true, });
+      gl.makeXRCompatible();
       document.body.appendChild(gl.canvas);
       gl.clearColor(0.0, 0, 0, 0.0);
 
@@ -379,6 +379,7 @@ async function disposeEmptyLayers() {
       await new Promise((resolve) => setTimeout(resolve, 200));
         let layer = layerManager.pop(); // Remove and get the layer
         if (layer) {
+          console.log("Destroying layer...");
             layer.destroy();
             layer = undefined;
         }
